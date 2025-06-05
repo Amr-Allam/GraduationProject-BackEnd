@@ -1,6 +1,7 @@
 import { getDataByHeader } from '../utils/file.util';
 import path from 'path';
 import jStat from 'jstat';
+import { validateData } from '../utils/validateData';
 
 export const calcSingle_t_test = (req) => {
   const { populationMean, fileName, headerName, alpha, alternative } = req.body;
@@ -70,14 +71,7 @@ function oneSampleTTest(
   return { tStatistic, pValue, degreesOfFreedom: df, alternative, decision };
 }
 
-export function clacKsTestForNormality(req, significanceLevel = 0.05) {
-  const { fileName, headerName } = req.body;
-  const curPath = `${path.resolve()}/public/${fileName}`;
-
-  const data = getDataByHeader(curPath, headerName);
-  if (!data) throw new Error('there is no column with this name');
-  validateData(data);
-
+export function clacKsTestForNormality(data, significanceLevel = 0.05) {
   // Calculate sample mean and standard deviation
   const mean = jStat.mean(data);
   const stdDev = jStat.stdev(data, true); // true for sample standard deviation
@@ -121,21 +115,4 @@ function approximatePValue(d, n) {
     sum += Math.pow(-1, j - 1) * Math.exp(-2 * j * j * lambda * lambda);
   }
   return Math.min(Math.max(2 * sum, 0), 1);
-}
-
-function validateData(sampleData) {
-  console.log(sampleData);
-  if (!Array.isArray(sampleData)) {
-    throw new Error('Data is not an array.');
-  }
-
-  const isValid =
-    sampleData.length > 0 &&
-    sampleData.every((item) => typeof item === 'number' && !isNaN(item));
-
-  if (!isValid) {
-    throw new Error('Invalid data: All elements must be numbers.');
-  }
-
-  return true;
 }

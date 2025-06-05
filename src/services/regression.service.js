@@ -1,5 +1,6 @@
 import { getDataByHeader } from '../utils/file.util';
 import path from 'path';
+import { validateData } from '../utils/validateData';
 
 export function calcLinearReg(req) {
   const { independentName, dependentName, fileName } = req.body;
@@ -58,20 +59,4 @@ export function calcLinearReg(req) {
     coefficientOfDetermination: rSquared.toFixed(4),
     standardError: standardError.toFixed(4)
   };
-}
-
-function validateData(sampleData) {
-  if (!Array.isArray(sampleData)) {
-    throw new Error('Data is not an array.');
-  }
-
-  const isValid =
-    sampleData.length > 0 &&
-    sampleData.every((item) => typeof item === 'number' && !isNaN(item));
-
-  if (!isValid) {
-    throw new Error('Invalid data: All elements must be numbers.');
-  }
-
-  return true;
 }
