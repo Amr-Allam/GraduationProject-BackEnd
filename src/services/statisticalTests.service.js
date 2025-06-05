@@ -87,22 +87,22 @@ export function clacKsTestForNormality(req, significanceLevel = 0.05) {
   const n = sortedData.length;
 
   // Calculate empirical CDF and compare with theoretical normal CDF
-  let maxDiff = 0;
+  let dPlus = 0,
+    dMinus = 0;
   for (let i = 0; i < n; i++) {
     const x = sortedData[i];
-    // Empirical CDF: (i+1)/n (using i+1 to avoid zero)
-    const empiricalCDF = (i + 1) / n;
-    // Theoretical CDF: normal distribution at x
+    const empiricalCDF1 = (i + 1) / n;
+    const empiricalCDF2 = i / n;
     const theoreticalCDF = jStat.normal.cdf(x, mean, stdDev);
-    // Calculate absolute difference
-    const diff = Math.abs(empiricalCDF - theoreticalCDF);
-    maxDiff = Math.max(maxDiff, diff);
+    dPlus = Math.max(dPlus, empiricalCDF1 - theoreticalCDF);
+    dMinus = Math.max(dMinus, theoreticalCDF - empiricalCDF2);
   }
+  const maxDiff = Math.max(dPlus, dMinus);
 
   // Calculate critical value for KS test
   // Approximation for large samples: c(α) * sqrt(-0.5 * ln(α/2) / n)
-  const cAlpha = Math.sqrt(-0.5 * Math.log(significanceLevel / 2));
-  const criticalValue = cAlpha * Math.sqrt(1 / n);
+  const k = 1.36;
+  const criticalValue = k / Math.sqrt(n);
 
   // Return test results
   return {
@@ -114,11 +114,13 @@ export function clacKsTestForNormality(req, significanceLevel = 0.05) {
   };
 }
 
-// Approximate p-value for KS test (using asymptotic distribution)
 function approximatePValue(d, n) {
-  // For large n, p-value ≈ 2 * exp(-2 * n * D^2)
-  const z = Math.sqrt(n) * d;
-  return 2 * Math.exp(-2 * z * z);
+  const lambda = (Math.sqrt(n) + 0.12 + 0.11 / Math.sqrt(n)) * d;
+  let sum = 0;
+  for (let j = 1; j <= 100; j++) {
+    sum += Math.pow(-1, j - 1) * Math.exp(-2 * j * j * lambda * lambda);
+  }
+  return Math.min(Math.max(2 * sum, 0), 1);
 }
 
 function validateData(sampleData) {
