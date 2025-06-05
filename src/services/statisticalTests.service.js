@@ -70,6 +70,57 @@ function oneSampleTTest(
   return { tStatistic, pValue, degreesOfFreedom: df, alternative, decision };
 }
 
+export function clacKsTestForNormality(req, significanceLevel = 0.05) {
+  const { fileName, headerName } = req.body;
+  const curPath = `${path.resolve()}/public/${fileName}`;
+
+  const data = getDataByHeader(curPath, headerName);
+  if (!data) throw new Error('there is no column with this name');
+  validateData(data);
+
+  // Calculate sample mean and standard deviation
+  const mean = jStat.mean(data);
+  const stdDev = jStat.stdev(data, true); // true for sample standard deviation
+
+  // Sort data for empirical CDF
+  const sortedData = [...data].sort((a, b) => a - b);
+  const n = sortedData.length;
+
+  // Calculate empirical CDF and compare with theoretical normal CDF
+  let maxDiff = 0;
+  for (let i = 0; i < n; i++) {
+    const x = sortedData[i];
+    // Empirical CDF: (i+1)/n (using i+1 to avoid zero)
+    const empiricalCDF = (i + 1) / n;
+    // Theoretical CDF: normal distribution at x
+    const theoreticalCDF = jStat.normal.cdf(x, mean, stdDev);
+    // Calculate absolute difference
+    const diff = Math.abs(empiricalCDF - theoreticalCDF);
+    maxDiff = Math.max(maxDiff, diff);
+  }
+
+  // Calculate critical value for KS test
+  // Approximation for large samples: c(α) * sqrt(-0.5 * ln(α/2) / n)
+  const cAlpha = Math.sqrt(-0.5 * Math.log(significanceLevel / 2));
+  const criticalValue = cAlpha * Math.sqrt(1 / n);
+
+  // Return test results
+  return {
+    statistic: maxDiff,
+    criticalValue: criticalValue,
+    isNormal: maxDiff <= criticalValue,
+    pValue: approximatePValue(maxDiff, n),
+    significanceLevel: significanceLevel
+  };
+}
+
+// Approximate p-value for KS test (using asymptotic distribution)
+function approximatePValue(d, n) {
+  // For large n, p-value ≈ 2 * exp(-2 * n * D^2)
+  const z = Math.sqrt(n) * d;
+  return 2 * Math.exp(-2 * z * z);
+}
+
 function validateData(sampleData) {
   console.log(sampleData);
   if (!Array.isArray(sampleData)) {
