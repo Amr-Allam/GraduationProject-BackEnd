@@ -1,5 +1,4 @@
 export function validateData(sampleData) {
-  console.log(sampleData);
   if (!Array.isArray(sampleData)) {
     throw new Error('Data is not an array.');
   }
