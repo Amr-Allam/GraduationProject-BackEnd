@@ -116,3 +116,85 @@ function approximatePValue(d, n) {
   }
   return Math.min(Math.max(2 * sum, 0), 1);
 }
+
+export function calcSignTest(sample1, sample2, alpha = 0.05) {
+  if (sample1.length !== sample2.length) {
+    throw new Error('Samples must have equal length');
+  }
+
+  if (sample1.length < 1) {
+    throw new Error('Samples must not be empty');
+  }
+
+  // Calculate differences and count signs
+  let positive = 0;
+  let negative = 0;
+  let zeros = 0;
+
+  for (let i = 0; i < sample1.length; i++) {
+    const diff = sample1[i] - sample2[i];
+    if (diff > 0) positive++;
+    else if (diff < 0) negative++;
+    else zeros++;
+  }
+
+  // Effective sample size (excluding ties)
+  const n = positive + negative;
+
+  if (n === 0) {
+    return {
+      statistic: 0,
+      pValue: 1,
+      significant: false,
+      positiveSigns: positive,
+      negativeSigns: negative,
+      ties: zeros
+    };
+  }
+
+  // Test statistic is the smaller of positive or negative counts
+  const statistic = Math.min(positive, negative);
+
+  // Calculate p-value using binomial distribution
+  let pValue = 0;
+  const p = 0.5; // Null hypothesis: equal probability of positive/negative
+
+  // Calculate cumulative probability for values <= statistic
+  for (let k = 0; k <= statistic; k++) {
+    pValue += binomialProbability(n, k, p);
+  }
+
+  // Two-tailed test: multiply by 2
+  pValue *= 2;
+
+  // Ensure p-value doesn't exceed 1
+  pValue = Math.min(pValue, 1);
+
+  return {
+    statistic,
+    pValue,
+    significant: pValue < alpha,
+    positiveSigns: positive,
+    negativeSigns: negative,
+    ties: zeros
+  };
+}
+
+// Helper function to calculate binomial probability
+function binomialProbability(n, k, p) {
+  const coefficient = binomialCoefficient(n, k);
+  return coefficient * Math.pow(p, k) * Math.pow(1 - p, n - k);
+}
+
+// Helper function to calculate binomial coefficient
+function binomialCoefficient(n, k) {
+  if (k < 0 || k > n) return 0;
+  if (k === 0 || k === n) return 1;
+
+  k = Math.min(k, n - k);
+  let c = 1;
+  for (let i = 0; i < k; i++) {
+    c *= (n - i) / (k - i);
+  }
+  return c;
+}
