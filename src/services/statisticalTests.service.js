@@ -198,3 +198,140 @@ function binomialCoefficient(n, k) {
   }
   return c;
 }
+
+export function calcWilcoxonSignedRankTest(sample1, sample2, alpha = 0.05) {
+  if (sample1.length !== sample2.length) {
+    throw new Error('Samples must have equal length');
+  }
+
+  if (sample1.length < 1) {
+    throw new Error('Samples must not be empty');
+  }
+
+  // Calculate differences and their absolute values
+  const differences = sample1.map((x, i) => x - sample2[i]);
+  const absDifferences = differences.map(Math.abs);
+
+  // Filter out zero differences (ties with zero)
+  const nonZero = differences
+    .map((diff, i) => ({ diff, abs: absDifferences[i], index: i }))
+    .filter((item) => item.diff !== 0);
+
+  if (nonZero.length === 0) {
+    return {
+      statistic: 0,
+      pValue: 1,
+      significant: false,
+      positiveRankSum: 0,
+      negativeRankSum: 0,
+      ties: differences.length
+    };
+  }
+
+  // Assign ranks to absolute differences
+  nonZero.sort((a, b) => a.abs - b.abs);
+  let rank = 1;
+  let ranks = new Array(nonZero.length).fill(0);
+  let i = 0;
+
+  while (i < nonZero.length) {
+    let j = i;
+    let sumRanks = 0;
+    let count = 0;
+
+    // Handle ties in absolute differences
+    while (j < nonZero.length && nonZero[j].abs === nonZero[i].abs) {
+      sumRanks += rank;
+      count++;
+      rank++;
+      j++;
+    }
+
+    // Assign average rank to tied values
+    const avgRank = sumRanks / count;
+    for (let k = i; k < j; k++) {
+      ranks[k] = avgRank;
+    }
+    i = j;
+  }
+
+  // Calculate positive and negative rank sums
+  let positiveRankSum = 0;
+  let negativeRankSum = 0;
+
+  nonZero.forEach((item, idx) => {
+    if (item.diff > 0) {
+      positiveRankSum += ranks[idx];
+    } else {
+      negativeRankSum += ranks[idx];
+    }
+  });
+
+  // Test statistic is the smaller of the rank sums
+  const statistic = Math.min(positiveRankSum, negativeRankSum);
+  const n = nonZero.length;
+
+  // Approximate p-value using normal approximation for n > 20
+  let pValue;
+  if (n > 20) {
+    const mean = (n * (n + 1)) / 4;
+    const variance = (n * (n + 1) * (2 * n + 1)) / 24;
+    const z = (statistic - mean - 0.5) / Math.sqrt(variance);
+    pValue = 2 * (1 - normalCDF(Math.abs(z)));
+  } else {
+    // Exact p-value for small samples (simplified, using binomial-like approach)
+    pValue = calculateExactPValue(statistic, n);
+  }
+
+  // Ensure p-value doesn't exceed 1
+  pValue = Math.min(pValue, 1);
+
+  return {
+    statistic,
+    pValue,
+    significant: pValue < alpha,
+    positiveRankSum,
+    negativeRankSum,
+    ties: differences.length - n
+  };
+}
+
+// Normal CDF approximation
+function normalCDF(z) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp((-z * z) / 2);
+  const p =
+    d *
+    t *
+    (0.31938153 +
+      t *
+        (-0.356563782 +
+          t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return z > 0 ? 1 - p : p;
+}
+
+// Simplified exact p-value calculation for small samples
+function calculateExactPValue(statistic, n) {
+  let p = 0;
+  const maxW = (n * (n + 1)) / 2;
+  for (let w = 0; w <= statistic; w++) {
+    p += wilcoxonProbability(n, w);
+  }
+  return 2 * p; // Two-tailed test
+}
+
+// Probability of rank sum W for n pairs
+function wilcoxonProbability(n, w) {
+  const table = new Array(n + 1).fill(0).map(() => new Array(w + 1).fill(0));
+  table[0][0] = 1;
+
+  for (let i = 1; i <= n; i++) {
+    table[i][0] = table[i - 1][0];
+    for (let j = 1; j <= w && j <= (i * (i + 1)) / 2; j++) {
+      table[i][j] = table[i - 1][j] + (j >= i ? table[i - 1][j - i] : 0);
+    }
+  }
+
+  const total = Math.pow(2, n);
+  return table[n][w] / total;
+}
