@@ -1,6 +1,7 @@
 import path from 'path';
 
 import {
+  calcANOVA,
   calcSignTest,
   calcSingle_t_test,
   calcWilcoxonSignedRankTest,
@@ -59,4 +60,46 @@ export const wilcoxonSignedRankTest = (req, res) => {
   const result = calcWilcoxonSignedRankTest(sample1, sample2);
 
   return res.json({ message: 'Upload successful', result });
+};
+
+export const anova = (req, res) => {
+  try {
+    const { fileName, headerNames } = req.body;
+
+    // Validate input
+    if (
+      !fileName ||
+      !headerNames ||
+      !Array.isArray(headerNames) ||
+      headerNames.length < 2
+    ) {
+      return res
+        .status(400)
+        .json({ error: 'fileName and at least two headerNames are required' });
+    }
+
+    const curPath = `${path.resolve()}/public/${fileName}`;
+
+    // Dynamically get data for all specified headers
+    const groups = headerNames.map((header, index) => {
+      const data = getDataByHeader(curPath, header);
+      if (!data) {
+        throw new Error(
+          `No data found for column "${header}" at index ${index}`
+        );
+      }
+      validateData(data);
+      return data;
+    });
+
+    // Run ANOVA test
+    const result = calcANOVA(groups);
+
+    return res.status(200).json({
+      message: 'ANOVA test completed successfully',
+      result
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
 };

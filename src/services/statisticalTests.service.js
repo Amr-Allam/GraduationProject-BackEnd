@@ -335,3 +335,67 @@ function wilcoxonProbability(n, w) {
   const total = Math.pow(2, n);
   return table[n][w] / total;
 }
+
+export function calcANOVA(groups, alpha = 0.05) {
+  // Input validation
+  if (!Array.isArray(groups) || groups.length < 2) {
+    throw new Error('At least two groups are required for ANOVA');
+  }
+  if (groups.some((group) => !Array.isArray(group) || group.length === 0)) {
+    throw new Error('Each group must be a non-empty array');
+  }
+
+  // Calculate group statistics
+  const groupMeans = groups.map((group) => jStat.mean(group));
+  const groupSizes = groups.map((group) => group.length);
+  const totalSize = groupSizes.reduce((sum, size) => sum + size, 0);
+  const overallMean = jStat.mean(groups.flat());
+
+  // Calculate Sum of Squares Between (SSB)
+  const ssb = groupMeans.reduce((sum, mean, i) => {
+    return sum + groupSizes[i] * Math.pow(mean - overallMean, 2);
+  }, 0);
+
+  // Calculate Sum of Squares Within (SSW)
+  const ssw = groups.reduce((sum, group) => {
+    const groupMean = jStat.mean(group);
+    return (
+      sum +
+      group.reduce((groupSum, value) => {
+        return groupSum + Math.pow(value - groupMean, 2);
+      }, 0)
+    );
+  }, 0);
+
+  // Calculate degrees of freedom
+  const dfBetween = groups.length - 1;
+  const dfWithin = totalSize - groups.length;
+
+  // Calculate Mean Squares
+  const msb = ssb / dfBetween;
+  const msw = ssw / dfWithin;
+
+  // Calculate F-statistic
+  const fStatistic = msb / msw;
+
+  // Calculate p-value using F-distribution
+  const pValue = 1 - jStat.centralF.cdf(fStatistic, dfBetween, dfWithin);
+
+  // Generate decision comment
+  const decision =
+    pValue < alpha
+      ? `Reject the null hypothesis: At least one group mean is significantly different (p < ${alpha}).`
+      : `Fail to reject the null hypothesis: No significant difference between group means (p ≥ ${alpha}).`;
+
+  return {
+    fStatistic,
+    pValue,
+    dfBetween,
+    dfWithin,
+    ssb,
+    ssw,
+    msb,
+    msw,
+    decision
+  };
+}
