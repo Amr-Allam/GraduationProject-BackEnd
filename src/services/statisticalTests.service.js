@@ -399,3 +399,67 @@ export function calcANOVA(groups, alpha = 0.05) {
     decision
   };
 }
+
+export function calcMannWhitneyUTest(sample1, sample2, alpha = 0.05) {
+  if (!Array.isArray(sample1) || !Array.isArray(sample2)) {
+    throw new Error('Both samples must be arrays');
+  }
+  if (sample1.length < 1 || sample2.length < 1) {
+    throw new Error('Both samples must be non-empty');
+  }
+
+  // Combine samples and assign ranks
+  const combined = sample1
+    .map((v) => ({ value: v, group: 1 }))
+    .concat(sample2.map((v) => ({ value: v, group: 2 })));
+  combined.sort((a, b) => a.value - b.value);
+
+  // Assign ranks, handling ties
+  let ranks = new Array(combined.length);
+  let i = 0;
+  while (i < combined.length) {
+    let j = i;
+    while (
+      j + 1 < combined.length &&
+      combined[j + 1].value === combined[i].value
+    ) {
+      j++;
+    }
+    const avgRank = (i + j + 2) / 2; // ranks are 1-based
+    for (let k = i; k <= j; k++) {
+      ranks[k] = avgRank;
+    }
+    i = j + 1;
+  }
+
+  // Sum ranks for each group
+  let rankSum1 = 0,
+    rankSum2 = 0;
+  for (let idx = 0; idx < combined.length; idx++) {
+    if (combined[idx].group === 1) rankSum1 += ranks[idx];
+    else rankSum2 += ranks[idx];
+  }
+
+  const n1 = sample1.length;
+  const n2 = sample2.length;
+  const U1 = rankSum1 - (n1 * (n1 + 1)) / 2;
+  const U2 = rankSum2 - (n2 * (n2 + 1)) / 2;
+  const U = Math.min(U1, U2);
+
+  // Normal approximation for large samples
+  let mu = (n1 * n2) / 2;
+  let sigma = Math.sqrt((n1 * n2 * (n1 + n2 + 1)) / 12);
+  let z = (U - mu + 0.5) / sigma; // continuity correction
+  let pValue = 2 * (1 - normalCDF(Math.abs(z)));
+  pValue = Math.min(pValue, 1);
+
+  return {
+    U,
+    U1,
+    U2,
+    pValue,
+    significant: pValue < alpha,
+    n1,
+    n2
+  };
+}

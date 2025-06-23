@@ -5,7 +5,8 @@ import {
   kolmogorovSmirnovNormalTest,
   signTest,
   wilcoxonSignedRankTest,
-  anova
+  anova,
+  mannWhitneyUTest
 } from '../controllers/statisticalTests.controller';
 import { validate_t_testRequest } from '../validators/t-test.validator';
 
@@ -24,5 +25,6 @@ router.post('/kolmogorov-smirnov-test', kolmogorovSmirnovNormalTest);
 router.post('/sign-test', signTest);
 router.post('/ranked-sign-test', wilcoxonSignedRankTest);
 router.post('/anova-test', anova);
+router.post('/u-test', mannWhitneyUTest);
 
 export default router;

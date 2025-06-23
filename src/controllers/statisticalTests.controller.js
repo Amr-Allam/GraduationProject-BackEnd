@@ -5,7 +5,8 @@ import {
   calcSignTest,
   calcSingle_t_test,
   calcWilcoxonSignedRankTest,
-  clacKsTestForNormality
+  clacKsTestForNormality,
+  calcMannWhitneyUTest
 } from '../services/statisticalTests.service';
 import { getDataByHeader } from '../utils/file.util';
 import { validateData } from '../utils/validateData';
@@ -102,4 +103,21 @@ export const anova = (req, res) => {
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
+};
+
+export const mannWhitneyUTest = (req, res) => {
+  const { fileName, headerNames } = req.body;
+  const curPath = `${path.resolve()}/public/${fileName}`;
+
+  const sample1 = getDataByHeader(curPath, headerNames[0]);
+  const sample2 = getDataByHeader(curPath, headerNames[1]);
+
+  if (!sample1 || !sample2)
+    throw new Error('there is no column with this name');
+  validateData(sample1);
+  validateData(sample2);
+
+  const result = calcMannWhitneyUTest(sample1, sample2);
+
+  return res.json({ message: 'Upload successful', result });
 };
