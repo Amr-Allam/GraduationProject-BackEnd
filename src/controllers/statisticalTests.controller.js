@@ -6,7 +6,8 @@ import {
   calcSingle_t_test,
   calcWilcoxonSignedRankTest,
   clacKsTestForNormality,
-  calcMannWhitneyUTest
+  calcMannWhitneyUTest,
+  calcChiSquareTest
 } from '../services/statisticalTests.service';
 import { getDataByHeader } from '../utils/file.util';
 import { validateData } from '../utils/validateData';
@@ -120,4 +121,19 @@ export const mannWhitneyUTest = (req, res) => {
   const result = calcMannWhitneyUTest(sample1, sample2);
 
   return res.json({ message: 'Upload successful', result });
+};
+
+export const chiSquareTest = (req, res) => {
+  try {
+    const { fileName, headerNames, testType, alpha } = req.body;
+    const result = calcChiSquareTest({
+      fileName,
+      headerNames,
+      testType,
+      alpha
+    });
+    return res.json({ message: 'Upload successful', result });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
 };

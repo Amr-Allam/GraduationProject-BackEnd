@@ -463,3 +463,118 @@ export function calcMannWhitneyUTest(sample1, sample2, alpha = 0.05) {
     n2
   };
 }
+
+export function calcChiSquareTest({
+  fileName,
+  headerNames,
+  testType,
+  alpha = 0.05
+}) {
+  const curPath = `${path.resolve()}/public/${fileName}`;
+  if (!Array.isArray(headerNames) || headerNames.length < 1) {
+    throw new Error('At least one headerName is required');
+  }
+
+  // One-sample: Goodness-of-fit
+  if (testType === 'goodness-of-fit' && headerNames.length === 1) {
+    const observed = getDataByHeader(curPath, headerNames[0]);
+    if (!observed) throw new Error('No data found for the specified column');
+    validateData(observed);
+
+    // Count frequencies
+    const freq = {};
+    observed.forEach((val) => {
+      freq[val] = (freq[val] || 0) + 1;
+    });
+    const observedCounts = Object.values(freq);
+
+    // Assume uniform expected frequencies if not provided
+    const total = observedCounts.reduce((a, b) => a + b, 0);
+    const expectedCount = total / observedCounts.length;
+    const expectedCounts = Array(observedCounts.length).fill(expectedCount);
+
+    // Chi-square statistic
+    let chi2 = 0;
+    for (let i = 0; i < observedCounts.length; i++) {
+      chi2 +=
+        Math.pow(observedCounts[i] - expectedCounts[i], 2) / expectedCounts[i];
+    }
+    const df = observedCounts.length - 1;
+    const pValue = 1 - jStat.chisquare.cdf(chi2, df);
+
+    return {
+      testType,
+      chi2,
+      pValue,
+      df,
+      significant: pValue < alpha,
+      observedCounts,
+      expectedCounts,
+      alpha
+    };
+  }
+
+  // Two-sample: Test of independence (contingency table)
+  if (testType === 'independence' && headerNames.length === 2) {
+    const col1 = getDataByHeader(curPath, headerNames[0]);
+    const col2 = getDataByHeader(curPath, headerNames[1]);
+    if (!col1 || !col2)
+      throw new Error('No data found for one or both columns');
+    validateData(col1);
+    validateData(col2);
+
+    if (col1.length !== col2.length) {
+      throw new Error('Both columns must have the same number of rows');
+    }
+
+    // Build contingency table
+    const rowCats = Array.from(new Set(col1));
+    const colCats = Array.from(new Set(col2));
+    const table = Array.from({ length: rowCats.length }, () =>
+      Array(colCats.length).fill(0)
+    );
+
+    for (let i = 0; i < col1.length; i++) {
+      const rowIdx = rowCats.indexOf(col1[i]);
+      const colIdx = colCats.indexOf(col2[i]);
+      table[rowIdx][colIdx]++;
+    }
+
+    // Row and column totals
+    const rowTotals = table.map((row) => row.reduce((a, b) => a + b, 0));
+    const colTotals = colCats.map((_, j) =>
+      table.reduce((sum, row) => sum + row[j], 0)
+    );
+    const grandTotal = rowTotals.reduce((a, b) => a + b, 0);
+
+    // Expected counts and chi-square statistic
+    let chi2 = 0;
+    const expected = table.map((row, i) =>
+      row.map((_, j) => (rowTotals[i] * colTotals[j]) / grandTotal)
+    );
+    for (let i = 0; i < rowCats.length; i++) {
+      for (let j = 0; j < colCats.length; j++) {
+        if (expected[i][j] > 0) {
+          chi2 += Math.pow(table[i][j] - expected[i][j], 2) / expected[i][j];
+        }
+      }
+    }
+    const df = (rowCats.length - 1) * (colCats.length - 1);
+    const pValue = 1 - jStat.chisquare.cdf(chi2, df);
+
+    return {
+      testType,
+      chi2,
+      pValue,
+      df,
+      significant: pValue < alpha,
+      observed: table,
+      expected,
+      rowCategories: rowCats,
+      colCategories: colCats,
+      alpha
+    };
+  }
+
+  throw new Error('Invalid testType or number of columns for chi-square test');
+}
