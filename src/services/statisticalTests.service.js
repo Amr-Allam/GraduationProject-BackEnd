@@ -20,6 +20,42 @@ export const calcSingle_t_test = (req) => {
   return testResult;
 };
 
+export const calcPaired_t_test = (req) => {
+  const { fileName, headerNames, alpha, alternative } = req.body;
+  const curPath = `${path.resolve()}/public/${fileName}`;
+
+  const sample1 = getDataByHeader(curPath, headerNames[0]);
+  const sample2 = getDataByHeader(curPath, headerNames[1]);
+
+  if (!sample1 || !sample2)
+    throw new Error('there is no column with this name');
+  validateData(sample1);
+  validateData(sample2);
+
+  if (sample1.length !== sample2.length) {
+    throw new Error('Both samples must have the same length for paired t-test');
+  }
+
+  const testResult = pairedTTest(sample1, sample2, alpha, alternative);
+  return testResult;
+};
+
+export const calcIndependent_t_test = (req) => {
+  const { fileName, headerNames, alpha, alternative } = req.body;
+  const curPath = `${path.resolve()}/public/${fileName}`;
+
+  const sample1 = getDataByHeader(curPath, headerNames[0]);
+  const sample2 = getDataByHeader(curPath, headerNames[1]);
+
+  if (!sample1 || !sample2)
+    throw new Error('there is no column with this name');
+  validateData(sample1);
+  validateData(sample2);
+
+  const testResult = independentTTest(sample1, sample2, alpha, alternative);
+  return testResult;
+};
+
 function oneSampleTTest(
   sample,
   populationMean,
@@ -69,6 +105,144 @@ function oneSampleTTest(
       : 'Fail to reject the null hypothesis';
 
   return { tStatistic, pValue, degreesOfFreedom: df, alternative, decision };
+}
+
+function pairedTTest(sample1, sample2, alpha, alternative = 'two-tailed') {
+  if (!Array.isArray(sample1) || !Array.isArray(sample2)) {
+    throw new Error('Both samples must be arrays.');
+  }
+
+  if (sample1.length !== sample2.length) {
+    throw new Error('Both samples must have the same length.');
+  }
+
+  if (sample1.length < 2) {
+    throw new Error('Samples must contain at least two values.');
+  }
+
+  // Calculate differences
+  const differences = sample1.map((val, i) => val - sample2[i]);
+  const n = differences.length;
+
+  // Compute mean of differences
+  const meanDiff = differences.reduce((sum, val) => sum + val, 0) / n;
+
+  // Compute standard deviation of differences
+  const variance =
+    differences.reduce((sum, val) => sum + Math.pow(val - meanDiff, 2), 0) /
+    (n - 1);
+  const stdDevDiff = Math.sqrt(variance);
+
+  // Compute t-statistic
+  const tStatistic = meanDiff / (stdDevDiff / Math.sqrt(n));
+
+  // Compute degrees of freedom
+  const df = n - 1;
+
+  // Compute p-value using the jStat library
+  let pValue;
+  if (alternative === 'two-tailed') {
+    pValue = 2 * (1 - jStat.studentt.cdf(Math.abs(tStatistic), df));
+  } else if (alternative === 'greater') {
+    pValue = 1 - jStat.studentt.cdf(tStatistic, df);
+  } else if (alternative === 'less') {
+    pValue = jStat.studentt.cdf(tStatistic, df);
+  } else {
+    throw new Error(
+      "Invalid alternative hypothesis. Choose 'two-tailed', 'greater', or 'less'."
+    );
+  }
+
+  // Decision based on significance level (alpha)
+  const decision =
+    pValue < alpha
+      ? 'Reject the null hypothesis'
+      : 'Fail to reject the null hypothesis';
+
+  return {
+    tStatistic,
+    pValue,
+    degreesOfFreedom: df,
+    alternative,
+    decision,
+    meanDifference: meanDiff,
+    standardError: stdDevDiff / Math.sqrt(n)
+  };
+}
+
+function independentTTest(sample1, sample2, alpha, alternative = 'two-tailed') {
+  if (!Array.isArray(sample1) || !Array.isArray(sample2)) {
+    throw new Error('Both samples must be arrays.');
+  }
+
+  if (sample1.length < 2 || sample2.length < 2) {
+    throw new Error('Both samples must contain at least two values.');
+  }
+
+  const n1 = sample1.length;
+  const n2 = sample2.length;
+
+  // Compute sample means
+  const mean1 = sample1.reduce((sum, val) => sum + val, 0) / n1;
+  const mean2 = sample2.reduce((sum, val) => sum + val, 0) / n2;
+
+  // Compute sample variances
+  const variance1 =
+    sample1.reduce((sum, val) => sum + Math.pow(val - mean1, 2), 0) / (n1 - 1);
+  const variance2 =
+    sample2.reduce((sum, val) => sum + Math.pow(val - mean2, 2), 0) / (n2 - 1);
+
+  // Compute pooled standard error
+  const pooledVariance =
+    ((n1 - 1) * variance1 + (n2 - 1) * variance2) / (n1 + n2 - 2);
+  const pooledStdError = Math.sqrt(pooledVariance * (1 / n1 + 1 / n2));
+
+  // Compute t-statistic
+  const tStatistic = (mean1 - mean2) / pooledStdError;
+
+  // Compute degrees of freedom
+  const df = n1 + n2 - 2;
+
+  // Compute p-value using the jStat library
+  let pValue;
+  if (alternative === 'two-tailed') {
+    pValue = 2 * (1 - jStat.studentt.cdf(Math.abs(tStatistic), df));
+  } else if (alternative === 'greater') {
+    pValue = 1 - jStat.studentt.cdf(tStatistic, df);
+  } else if (alternative === 'less') {
+    pValue = jStat.studentt.cdf(tStatistic, df);
+  } else {
+    throw new Error(
+      "Invalid alternative hypothesis. Choose 'two-tailed', 'greater', or 'less'."
+    );
+  }
+
+  // Decision based on significance level (alpha)
+  const decision =
+    pValue < alpha
+      ? 'Reject the null hypothesis'
+      : 'Fail to reject the null hypothesis';
+
+  return {
+    tStatistic,
+    pValue,
+    degreesOfFreedom: df,
+    alternative,
+    decision,
+    mean1,
+    mean2,
+    meanDifference: mean1 - mean2,
+    pooledStandardError: pooledStdError,
+    pooledVariance
+  };
+}
+
+function calculateExactPValue(statistic, n) {
+  let p = 0;
+  for (let w = 0; w <= statistic; w++) {
+    p += wilcoxonProbability(n, w);
+  }
+  return 2 * p; // Two-tailed test
 }
 
 export function clacKsTestForNormality(data, significanceLevel = 0.05) {
@@ -310,32 +484,6 @@ function normalCDF(z) {
   return z > 0 ? 1 - p : p;
 }
 
-// Simplified exact p-value calculation for small samples
-function calculateExactPValue(statistic, n) {
-  let p = 0;
-  const maxW = (n * (n + 1)) / 2;
-  for (let w = 0; w <= statistic; w++) {
-    p += wilcoxonProbability(n, w);
-  }
-  return 2 * p; // Two-tailed test
-}
-
-// Probability of rank sum W for n pairs
-function wilcoxonProbability(n, w) {
-  const table = new Array(n + 1).fill(0).map(() => new Array(w + 1).fill(0));
-  table[0][0] = 1;
-
-  for (let i = 1; i <= n; i++) {
-    table[i][0] = table[i - 1][0];
-    for (let j = 1; j <= w && j <= (i * (i + 1)) / 2; j++) {
-      table[i][j] = table[i - 1][j] + (j >= i ? table[i - 1][j - i] : 0);
-    }
-  }
-
-  const total = Math.pow(2, n);
-  return table[n][w] / total;
-}
-
 export function calcANOVA(groups, alpha = 0.05) {
   // Input validation
   if (!Array.isArray(groups) || groups.length < 2) {
@@ -487,13 +635,6 @@ export function calcChiSquareTest({
       freq[val] = (freq[val] || 0) + 1;
     });
     const observedCounts = Object.values(freq);
-    const categories = Object.keys(freq);
-
-    if (categories.length < 2) {
-      throw new Error(
-        'At least two categories are required for chi-square test'
-      );
-    }
 
     // Assume uniform expected frequencies if not provided
     const total = observedCounts.reduce((a, b) => a + b, 0);
@@ -509,22 +650,14 @@ export function calcChiSquareTest({
     const df = observedCounts.length - 1;
     const pValue = 1 - jStat.chisquare.cdf(chi2, df);
 
-    // Decision based on significance level
-    const decision =
-      pValue < alpha
-        ? 'Reject the null hypothesis: Data does not follow uniform distribution'
-        : 'Fail to reject the null hypothesis: Data follows uniform distribution';
-
     return {
       testType,
-      chiSquareStatistic: chi2,
+      chi2,
       pValue,
-      degreesOfFreedom: df,
+      df,
       significant: pValue < alpha,
-      decision,
       observedCounts,
       expectedCounts,
-      categories,
       alpha
     };
   }
@@ -545,11 +678,6 @@ export function calcChiSquareTest({
     // Build contingency table
     const rowCats = Array.from(new Set(col1));
     const colCats = Array.from(new Set(col2));
-
-    if (rowCats.length < 2 || colCats.length < 2) {
-      throw new Error('At least two categories are required for each variable');
-    }
-
     const table = Array.from({ length: rowCats.length }, () =>
       Array(colCats.length).fill(0)
     );
@@ -572,7 +700,6 @@ export function calcChiSquareTest({
     const expected = table.map((row, i) =>
       row.map((_, j) => (rowTotals[i] * colTotals[j]) / grandTotal)
     );
-
     for (let i = 0; i < rowCats.length; i++) {
       for (let j = 0; j < colCats.length; j++) {
         if (expected[i][j] > 0) {
@@ -580,23 +707,15 @@ export function calcChiSquareTest({
         }
       }
     }
-
     const df = (rowCats.length - 1) * (colCats.length - 1);
     const pValue = 1 - jStat.chisquare.cdf(chi2, df);
 
-    // Decision based on significance level
-    const decision =
-      pValue < alpha
-        ? 'Reject the null hypothesis: Variables are dependent'
-        : 'Fail to reject the null hypothesis: Variables are independent';
-
     return {
       testType,
-      chiSquareStatistic: chi2,
+      chi2,
       pValue,
-      degreesOfFreedom: df,
+      df,
       significant: pValue < alpha,
-      decision,
       observed: table,
       expected,
       rowCategories: rowCats,
@@ -608,188 +727,18 @@ export function calcChiSquareTest({
   throw new Error('Invalid testType or number of columns for chi-square test');
 }
 
-export function calcZTest({
-  fileName,
-  headerNames,
-  alpha = 0.05,
-  alternative = 'two-tailed',
-  populationMean,
-  populationStdDev
-}) {
-  const curPath = `${path.resolve()}/public/${fileName}`;
+// Probability of rank sum W for n pairs
+function wilcoxonProbability(n, w) {
+  const table = new Array(n + 1).fill(0).map(() => new Array(w + 1).fill(0));
+  table[0][0] = 1;
 
-  if (!Array.isArray(headerNames) || headerNames.length < 1) {
-    throw new Error('At least one headerName is required');
-  }
-
-  // One-sample z-test
-  if (headerNames.length === 1) {
-    if (populationMean === undefined || populationStdDev === undefined) {
-      throw new Error(
-        'populationMean and populationStdDev are required for one-sample z-test'
-      );
+  for (let i = 1; i <= n; i++) {
+    table[i][0] = table[i - 1][0];
+    for (let j = 1; j <= w && j <= (i * (i + 1)) / 2; j++) {
+      table[i][j] = table[i - 1][j] + (j >= i ? table[i - 1][j - i] : 0);
     }
-
-    const sampleData = getDataByHeader(curPath, headerNames[0]);
-    if (!sampleData) throw new Error('No data found for the specified column');
-    validateData(sampleData);
-
-    return oneSampleZTest(
-      sampleData,
-      populationMean,
-      populationStdDev,
-      alpha,
-      alternative
-    );
   }
 
-  // Two-sample z-test
-  if (headerNames.length === 2) {
-    const sample1 = getDataByHeader(curPath, headerNames[0]);
-    const sample2 = getDataByHeader(curPath, headerNames[1]);
-
-    if (!sample1 || !sample2) {
-      throw new Error('No data found for one or both columns');
-    }
-    validateData(sample1);
-    validateData(sample2);
-
-    return twoSampleZTest(sample1, sample2, alpha, alternative);
-  }
-
-  throw new Error('Z-test supports only 1 or 2 columns');
-}
-
-function oneSampleZTest(
-  sample,
-  populationMean,
-  populationStdDev,
-  alpha = 0.05,
-  alternative = 'two-tailed'
-) {
-  if (!Array.isArray(sample) || sample.length < 1) {
-    throw new Error('Sample must be a non-empty array');
-  }
-
-  if (populationStdDev <= 0) {
-    throw new Error('Population standard deviation must be positive');
-  }
-
-  const n = sample.length;
-
-  // Calculate sample mean
-  const sampleMean = sample.reduce((sum, val) => sum + val, 0) / n;
-
-  // Calculate standard error
-  const standardError = populationStdDev / Math.sqrt(n);
-
-  // Calculate z-statistic
-  const zStatistic = (sampleMean - populationMean) / standardError;
-
-  // Calculate p-value based on alternative hypothesis
-  let pValue;
-  if (alternative === 'two-tailed') {
-    pValue = 2 * (1 - jStat.normal.cdf(Math.abs(zStatistic), 0, 1));
-  } else if (alternative === 'greater') {
-    pValue = 1 - jStat.normal.cdf(zStatistic, 0, 1);
-  } else if (alternative === 'less') {
-    pValue = jStat.normal.cdf(zStatistic, 0, 1);
-  } else {
-    throw new Error(
-      'Invalid alternative hypothesis. Choose "two-tailed", "greater", or "less"'
-    );
-  }
-
-  // Decision based on significance level
-  const decision =
-    pValue < alpha
-      ? 'Reject the null hypothesis'
-      : 'Fail to reject the null hypothesis';
-
-  return {
-    testType: 'One-sample Z-test',
-    zStatistic,
-    pValue,
-    sampleMean,
-    populationMean,
-    standardError,
-    sampleSize: n,
-    alternative,
-    significant: pValue < alpha,
-    decision,
-    alpha
-  };
-}
-
-function twoSampleZTest(
-  sample1,
-  sample2,
-  alpha = 0.05,
-  alternative = 'two-tailed'
-) {
-  if (!Array.isArray(sample1) || !Array.isArray(sample2)) {
-    throw new Error('Both samples must be arrays');
-  }
-
-  if (sample1.length < 1 || sample2.length < 1) {
-    throw new Error('Both samples must be non-empty');
-  }
-
-  const n1 = sample1.length;
-  const n2 = sample2.length;
-
-  // Calculate sample means
-  const mean1 = sample1.reduce((sum, val) => sum + val, 0) / n1;
-  const mean2 = sample2.reduce((sum, val) => sum + val, 0) / n2;
-
-  // Calculate sample variances
-  const variance1 =
-    sample1.reduce((sum, val) => sum + Math.pow(val - mean1, 2), 0) / (n1 - 1);
-  const variance2 =
-    sample2.reduce((sum, val) => sum + Math.pow(val - mean2, 2), 0) / (n2 - 1);
-
-  // Calculate pooled standard error
-  const pooledVariance =
-    ((n1 - 1) * variance1 + (n2 - 1) * variance2) / (n1 + n2 - 2);
-  const standardError = Math.sqrt(pooledVariance * (1 / n1 + 1 / n2));
-
-  // Calculate z-statistic
-  const zStatistic = (mean1 - mean2) / standardError;
-
-  // Calculate p-value based on alternative hypothesis
-  let pValue;
-  if (alternative === 'two-tailed') {
-    pValue = 2 * (1 - jStat.normal.cdf(Math.abs(zStatistic), 0, 1));
-  } else if (alternative === 'greater') {
-    pValue = 1 - jStat.normal.cdf(zStatistic, 0, 1);
-  } else if (alternative === 'less') {
-    pValue = jStat.normal.cdf(zStatistic, 0, 1);
-  } else {
-    throw new Error(
-      'Invalid alternative hypothesis. Choose "two-tailed", "greater", or "less"'
-    );
-  }
-
-  // Decision based on significance level
-  const decision =
-    pValue < alpha
-      ? 'Reject the null hypothesis: Population means are significantly different'
-      : 'Fail to reject the null hypothesis: No significant difference between population means';
-
-  return {
-    testType: 'Two-sample Z-test',
-    zStatistic,
-    pValue,
-    sample1Mean: mean1,
-    sample2Mean: mean2,
-    meanDifference: mean1 - mean2,
-    standardError,
-    sample1Size: n1,
-    sample2Size: n2,
-    pooledVariance,
-    alternative,
-    significant: pValue < alpha,
-    decision,
-    alpha
-  };
+  const total = Math.pow(2, n);
+  return table[n][w] / total;
 }
