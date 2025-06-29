@@ -607,3 +607,189 @@ export function calcChiSquareTest({
 
   throw new Error('Invalid testType or number of columns for chi-square test');
 }
+
+export function calcZTest({
+  fileName,
+  headerNames,
+  alpha = 0.05,
+  alternative = 'two-tailed',
+  populationMean,
+  populationStdDev
+}) {
+  const curPath = `${path.resolve()}/public/${fileName}`;
+
+  if (!Array.isArray(headerNames) || headerNames.length < 1) {
+    throw new Error('At least one headerName is required');
+  }
+
+  // One-sample z-test
+  if (headerNames.length === 1) {
+    if (populationMean === undefined || populationStdDev === undefined) {
+      throw new Error(
+        'populationMean and populationStdDev are required for one-sample z-test'
+      );
+    }
+
+    const sampleData = getDataByHeader(curPath, headerNames[0]);
+    if (!sampleData) throw new Error('No data found for the specified column');
+    validateData(sampleData);
+
+    return oneSampleZTest(
+      sampleData,
+      populationMean,
+      populationStdDev,
+      alpha,
+      alternative
+    );
+  }
+
+  // Two-sample z-test
+  if (headerNames.length === 2) {
+    const sample1 = getDataByHeader(curPath, headerNames[0]);
+    const sample2 = getDataByHeader(curPath, headerNames[1]);
+
+    if (!sample1 || !sample2) {
+      throw new Error('No data found for one or both columns');
+    }
+    validateData(sample1);
+    validateData(sample2);
+
+    return twoSampleZTest(sample1, sample2, alpha, alternative);
+  }
+
+  throw new Error('Z-test supports only 1 or 2 columns');
+}
+
+function oneSampleZTest(
+  sample,
+  populationMean,
+  populationStdDev,
+  alpha = 0.05,
+  alternative = 'two-tailed'
+) {
+  if (!Array.isArray(sample) || sample.length < 1) {
+    throw new Error('Sample must be a non-empty array');
+  }
+
+  if (populationStdDev <= 0) {
+    throw new Error('Population standard deviation must be positive');
+  }
+
+  const n = sample.length;
+
+  // Calculate sample mean
+  const sampleMean = sample.reduce((sum, val) => sum + val, 0) / n;
+
+  // Calculate standard error
+  const standardError = populationStdDev / Math.sqrt(n);
+
+  // Calculate z-statistic
+  const zStatistic = (sampleMean - populationMean) / standardError;
+
+  // Calculate p-value based on alternative hypothesis
+  let pValue;
+  if (alternative === 'two-tailed') {
+    pValue = 2 * (1 - jStat.normal.cdf(Math.abs(zStatistic), 0, 1));
+  } else if (alternative === 'greater') {
+    pValue = 1 - jStat.normal.cdf(zStatistic, 0, 1);
+  } else if (alternative === 'less') {
+    pValue = jStat.normal.cdf(zStatistic, 0, 1);
+  } else {
+    throw new Error(
+      'Invalid alternative hypothesis. Choose "two-tailed", "greater", or "less"'
+    );
+  }
+
+  // Decision based on significance level
+  const decision =
+    pValue < alpha
+      ? 'Reject the null hypothesis'
+      : 'Fail to reject the null hypothesis';
+
+  return {
+    testType: 'One-sample Z-test',
+    zStatistic,
+    pValue,
+    sampleMean,
+    populationMean,
+    standardError,
+    sampleSize: n,
+    alternative,
+    significant: pValue < alpha,
+    decision,
+    alpha
+  };
+}
+
+function twoSampleZTest(
+  sample1,
+  sample2,
+  alpha = 0.05,
+  alternative = 'two-tailed'
+) {
+  if (!Array.isArray(sample1) || !Array.isArray(sample2)) {
+    throw new Error('Both samples must be arrays');
+  }
+
+  if (sample1.length < 1 || sample2.length < 1) {
+    throw new Error('Both samples must be non-empty');
+  }
+
+  const n1 = sample1.length;
+  const n2 = sample2.length;
+
+  // Calculate sample means
+  const mean1 = sample1.reduce((sum, val) => sum + val, 0) / n1;
+  const mean2 = sample2.reduce((sum, val) => sum + val, 0) / n2;
+
+  // Calculate sample variances
+  const variance1 =
+    sample1.reduce((sum, val) => sum + Math.pow(val - mean1, 2), 0) / (n1 - 1);
+  const variance2 =
+    sample2.reduce((sum, val) => sum + Math.pow(val - mean2, 2), 0) / (n2 - 1);
+
+  // Calculate pooled standard error
+  const pooledVariance =
+    ((n1 - 1) * variance1 + (n2 - 1) * variance2) / (n1 + n2 - 2);
+  const standardError = Math.sqrt(pooledVariance * (1 / n1 + 1 / n2));
+
+  // Calculate z-statistic
+  const zStatistic = (mean1 - mean2) / standardError;
+
+  // Calculate p-value based on alternative hypothesis
+  let pValue;
+  if (alternative === 'two-tailed') {
+    pValue = 2 * (1 - jStat.normal.cdf(Math.abs(zStatistic), 0, 1));
+  } else if (alternative === 'greater') {
+    pValue = 1 - jStat.normal.cdf(zStatistic, 0, 1);
+  } else if (alternative === 'less') {
+    pValue = jStat.normal.cdf(zStatistic, 0, 1);
+  } else {
+    throw new Error(
+      'Invalid alternative hypothesis. Choose "two-tailed", "greater", or "less"'
+    );
+  }
+
+  // Decision based on significance level
+  const decision =
+    pValue < alpha
+      ? 'Reject the null hypothesis: Population means are significantly different'
+      : 'Fail to reject the null hypothesis: No significant difference between population means';
+
+  return {
+    testType: 'Two-sample Z-test',
+    zStatistic,
+    pValue,
+    sample1Mean: mean1,
+    sample2Mean: mean2,
+    meanDifference: mean1 - mean2,
+    standardError,
+    sample1Size: n1,
+    sample2Size: n2,
+    pooledVariance,
+    alternative,
+    significant: pValue < alpha,
+    decision,
+    alpha
+  };
+}

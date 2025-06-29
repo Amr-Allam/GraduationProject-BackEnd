@@ -7,7 +7,8 @@ import {
   calcWilcoxonSignedRankTest,
   clacKsTestForNormality,
   calcMannWhitneyUTest,
-  calcChiSquareTest
+  calcChiSquareTest,
+  calcZTest
 } from '../services/statisticalTests.service';
 import { getDataByHeader } from '../utils/file.util';
 import { validateData } from '../utils/validateData';
@@ -133,6 +134,30 @@ export const chiSquareTest = (req, res) => {
       alpha
     });
     return res.json({ message: 'Upload successful', result });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const zTest = (req, res) => {
+  try {
+    const {
+      fileName,
+      headerNames,
+      alpha,
+      alternative,
+      populationMean,
+      populationStdDev
+    } = req.body;
+    const result = calcZTest({
+      fileName,
+      headerNames,
+      alpha,
+      alternative,
+      populationMean,
+      populationStdDev
+    });
+    return res.json({ message: 'Z-test completed successfully', result });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
