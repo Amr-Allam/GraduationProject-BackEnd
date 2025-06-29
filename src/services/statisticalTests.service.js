@@ -487,6 +487,13 @@ export function calcChiSquareTest({
       freq[val] = (freq[val] || 0) + 1;
     });
     const observedCounts = Object.values(freq);
+    const categories = Object.keys(freq);
+
+    if (categories.length < 2) {
+      throw new Error(
+        'At least two categories are required for chi-square test'
+      );
+    }
 
     // Assume uniform expected frequencies if not provided
     const total = observedCounts.reduce((a, b) => a + b, 0);
@@ -502,14 +509,22 @@ export function calcChiSquareTest({
     const df = observedCounts.length - 1;
     const pValue = 1 - jStat.chisquare.cdf(chi2, df);
 
+    // Decision based on significance level
+    const decision =
+      pValue < alpha
+        ? 'Reject the null hypothesis: Data does not follow uniform distribution'
+        : 'Fail to reject the null hypothesis: Data follows uniform distribution';
+
     return {
       testType,
-      chi2,
+      chiSquareStatistic: chi2,
       pValue,
-      df,
+      degreesOfFreedom: df,
       significant: pValue < alpha,
+      decision,
       observedCounts,
       expectedCounts,
+      categories,
       alpha
     };
   }
@@ -530,6 +545,11 @@ export function calcChiSquareTest({
     // Build contingency table
     const rowCats = Array.from(new Set(col1));
     const colCats = Array.from(new Set(col2));
+
+    if (rowCats.length < 2 || colCats.length < 2) {
+      throw new Error('At least two categories are required for each variable');
+    }
+
     const table = Array.from({ length: rowCats.length }, () =>
       Array(colCats.length).fill(0)
     );
@@ -552,6 +572,7 @@ export function calcChiSquareTest({
     const expected = table.map((row, i) =>
       row.map((_, j) => (rowTotals[i] * colTotals[j]) / grandTotal)
     );
+
     for (let i = 0; i < rowCats.length; i++) {
       for (let j = 0; j < colCats.length; j++) {
         if (expected[i][j] > 0) {
@@ -559,15 +580,23 @@ export function calcChiSquareTest({
         }
       }
     }
+
     const df = (rowCats.length - 1) * (colCats.length - 1);
     const pValue = 1 - jStat.chisquare.cdf(chi2, df);
 
+    // Decision based on significance level
+    const decision =
+      pValue < alpha
+        ? 'Reject the null hypothesis: Variables are dependent'
+        : 'Fail to reject the null hypothesis: Variables are independent';
+
     return {
       testType,
-      chi2,
+      chiSquareStatistic: chi2,
       pValue,
-      df,
+      degreesOfFreedom: df,
       significant: pValue < alpha,
+      decision,
       observed: table,
       expected,
       rowCategories: rowCats,
