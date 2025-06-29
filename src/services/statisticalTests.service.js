@@ -742,3 +742,169 @@ function wilcoxonProbability(n, w) {
   const total = Math.pow(2, n);
   return table[n][w] / total;
 }
+
+export const calcSingle_z_test = (req) => {
+  const {
+    populationMean,
+    populationStdDev,
+    fileName,
+    headerName,
+    headerNames,
+    alpha,
+    alternative
+  } = req.body;
+  const curPath = `${path.resolve()}/public/${fileName}`;
+
+  // Support both headerName and headerNames[0]
+  const colName = headerName || (Array.isArray(headerNames) ? headerNames[0] : undefined);
+
+  const sampleData = getDataByHeader(curPath, colName);
+  if (!sampleData) throw new Error('there is no column with this name');
+  validateData(sampleData);
+  const testResult = oneSampleZTest(
+    sampleData,
+    populationMean,
+    populationStdDev,
+    alpha,
+    alternative
+  );
+
+  return testResult;
+};
+
+export const calcTwo_sample_z_test = (req) => {
+  const {
+    fileName,
+    headerNames,
+    alpha,
+    alternative,
+    populationMean1,
+    populationMean2,
+    populationStdDev1,
+    populationStdDev2
+  } = req.body;
+  const curPath = `${path.resolve()}/public/${fileName}`;
+
+  const sample1 = getDataByHeader(curPath, headerNames[0]);
+  const sample2 = getDataByHeader(curPath, headerNames[1]);
+
+  if (!sample1 || !sample2)
+    throw new Error('there is no column with this name');
+  validateData(sample1);
+  validateData(sample2);
+
+  const testResult = twoSampleZTest(
+    sample1,
+    sample2,
+    populationStdDev1,
+    populationStdDev2,
+    alpha,
+    alternative,
+    populationMean1,
+    populationMean2
+  );
+
+  return testResult;
+};
+
+function oneSampleZTest(
+  sample,
+  populationMean,
+  populationStdDev,
+  alpha = 0.05,
+  alternative = 'two-tailed'
+) {
+  if (!Array.isArray(sample) || sample.length < 1) {
+    throw new Error('Sample must contain at least one value.');
+  }
+
+  const n = sample.length;
+  const sampleMean = jStat.mean(sample);
+  const standardError = populationStdDev / Math.sqrt(n);
+  const zStatistic = (sampleMean - populationMean) / standardError;
+
+  let pValue;
+  if (alternative === 'two-tailed') {
+    pValue = 2 * (1 - jStat.normal.cdf(Math.abs(zStatistic), 0, 1));
+  } else if (alternative === 'greater') {
+    pValue = 1 - jStat.normal.cdf(zStatistic, 0, 1);
+  } else if (alternative === 'less') {
+    pValue = jStat.normal.cdf(zStatistic, 0, 1);
+  } else {
+    throw new Error(
+      "Invalid alternative hypothesis. Choose 'two-tailed', 'greater', or 'less'."
+    );
+  }
+
+  const decision =
+    pValue < alpha
+      ? 'Reject the null hypothesis'
+      : 'Fail to reject the null hypothesis';
+
+  return {
+    zStatistic,
+    pValue,
+    sampleMean,
+    standardError,
+    alternative,
+    decision,
+    sampleSize: n
+  };
+}
+
+function twoSampleZTest(
+  sample1,
+  sample2,
+  stdDev1,
+  stdDev2,
+  alpha = 0.05,
+  alternative = 'two-tailed',
+  populationMean1 = 0,
+  populationMean2 = 0
+) {
+  if (!Array.isArray(sample1) || !Array.isArray(sample2)) {
+    throw new Error('Both samples must be arrays.');
+  }
+
+  const n1 = sample1.length;
+  const n2 = sample2.length;
+  const mean1 = jStat.mean(sample1);
+  const mean2 = jStat.mean(sample2);
+
+  const standardError = Math.sqrt(
+    Math.pow(stdDev1, 2) / n1 + Math.pow(stdDev2, 2) / n2
+  );
+  const zStatistic =
+    (mean1 - mean2 - (populationMean1 - populationMean2)) / standardError;
+
+  let pValue;
+  if (alternative === 'two-tailed') {
+    pValue = 2 * (1 - jStat.normal.cdf(Math.abs(zStatistic), 0, 1));
+  } else if (alternative === 'greater') {
+    pValue = 1 - jStat.normal.cdf(zStatistic, 0, 1);
+  } else if (alternative === 'less') {
+    pValue = jStat.normal.cdf(zStatistic, 0, 1);
+  } else {
+    throw new Error(
+      "Invalid alternative hypothesis. Choose 'two-tailed', 'greater', or 'less'."
+    );
+  }
+
+  const decision =
+    pValue < alpha
+      ? 'Reject the null hypothesis'
+      : 'Fail to reject the null hypothesis';
+
+  return {
+    zStatistic,
+    pValue,
+    mean1,
+    mean2,
+    meanDifference: mean1 - mean2,
+    standardError,
+    alternative,
+    decision,
+    sampleSize1: n1,
+    sampleSize2: n2
+  };
+}

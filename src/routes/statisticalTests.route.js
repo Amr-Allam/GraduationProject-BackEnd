@@ -9,7 +9,9 @@ import {
   wilcoxonSignedRankTest,
   anova,
   mannWhitneyUTest,
-  chiSquareTest
+  chiSquareTest,
+  single_z_test,
+  two_sample_z_test
 } from '../controllers/statisticalTests.controller';
 import {
   validate_t_testRequest,
@@ -39,5 +41,7 @@ router.post('/ranked-sign-test', wilcoxonSignedRankTest);
 router.post('/anova-test', anova);
 router.post('/u-test', mannWhitneyUTest);
 router.post('/chi-square-test', chiSquareTest);
+router.post('/single-z-test', single_z_test);
+router.post('/two-sample-z-test', two_sample_z_test);
 
 export default router;

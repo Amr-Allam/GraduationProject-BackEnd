@@ -9,7 +9,9 @@ import {
   calcMannWhitneyUTest,
   calcChiSquareTest,
   calcPaired_t_test,
-  calcIndependent_t_test
+  calcIndependent_t_test,
+  calcSingle_z_test,
+  calcTwo_sample_z_test
 } from '../services/statisticalTests.service';
 import { getDataByHeader } from '../utils/file.util';
 import { validateData } from '../utils/validateData';
@@ -152,6 +154,24 @@ export const paired_t_test = (req, res) => {
 export const independent_t_test = (req, res) => {
   try {
     const result = calcIndependent_t_test(req);
+    return res.json({ message: 'Upload successful', result });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const single_z_test = (req, res) => {
+  try {
+    const result = calcSingle_z_test(req);
+    return res.json({ message: 'Upload successful', result });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const two_sample_z_test = (req, res) => {
+  try {
+    const result = calcTwo_sample_z_test(req);
     return res.json({ message: 'Upload successful', result });
   } catch (error) {
     return res.status(500).json({ error: error.message });
