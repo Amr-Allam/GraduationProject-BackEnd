@@ -11,9 +11,14 @@ import {
   calcPaired_t_test,
   calcIndependent_t_test,
   calcSingle_z_test,
-  calcTwo_sample_z_test
+  calcTwo_sample_z_test,
+  calcTwoWayANOVA
 } from '../services/statisticalTests.service';
-import { getDataByHeader } from '../utils/file.util';
+import {
+  getDataByHeader,
+  getSheetData,
+  groupByFactors
+} from '../utils/file.util';
 import { validateData } from '../utils/validateData';
 
 export const single_t_test = (req, res) => {
@@ -68,43 +73,38 @@ export const wilcoxonSignedRankTest = (req, res) => {
   return res.json({ message: 'Upload successful', result });
 };
 
-export const anova = (req, res) => {
+export const anova = async (req, res) => {
   try {
-    const { fileName, headerNames } = req.body;
-
-    // Validate input
-    if (
-      !fileName ||
-      !headerNames ||
-      !Array.isArray(headerNames) ||
-      headerNames.length < 2
-    ) {
-      return res
-        .status(400)
-        .json({ error: 'fileName and at least two headerNames are required' });
+    const { fileName, factorNames, valueName, alpha } = req.body;
+    if (!fileName || !Array.isArray(factorNames) || !valueName) {
+      return res.status(400).json({
+        error: 'fileName, factorNames (array), and valueName are required'
+      });
     }
-
+    if (factorNames.length < 1 || factorNames.length > 2) {
+      return res.status(400).json({
+        error: 'factorNames must be an array of one or two column names'
+      });
+    }
     const curPath = `${path.resolve()}/public/${fileName}`;
-
-    // Dynamically get data for all specified headers
-    const groups = headerNames.map((header, index) => {
-      const data = getDataByHeader(curPath, header);
-      if (!data) {
-        throw new Error(
-          `No data found for column "${header}" at index ${index}`
-        );
-      }
-      validateData(data);
-      return data;
-    });
-
-    // Run ANOVA test
-    const result = calcANOVA(groups);
-
-    return res.status(200).json({
-      message: 'ANOVA test completed successfully',
-      result
-    });
+    const data = getSheetData(curPath);
+    if (!data || data.length === 0) {
+      return res.status(400).json({ error: 'No data found in the file' });
+    }
+    // Group data by factor(s)
+    const grouped = groupByFactors(data, factorNames, valueName);
+    let result;
+    if (factorNames.length === 1) {
+      // One-way ANOVA
+      result = calcANOVA(grouped, alpha);
+    } else {
+      // Two-way ANOVA
+      const { groups, levels1, levels2 } = grouped;
+      result = calcTwoWayANOVA(groups, levels1, levels2, alpha);
+    }
+    return res
+      .status(200)
+      .json({ message: 'ANOVA test completed successfully', result });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

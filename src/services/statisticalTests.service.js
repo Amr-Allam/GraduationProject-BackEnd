@@ -518,6 +518,7 @@ export function calcANOVA(groups, alpha = 0.05) {
   // Calculate degrees of freedom
   const dfBetween = groups.length - 1;
   const dfWithin = totalSize - groups.length;
+  const dfTotal = totalSize - 1;
 
   // Calculate Mean Squares
   const msb = ssb / dfBetween;
@@ -535,16 +536,28 @@ export function calcANOVA(groups, alpha = 0.05) {
       ? `Reject the null hypothesis: At least one group mean is significantly different (p < ${alpha}).`
       : `Fail to reject the null hypothesis: No significant difference between group means (p ≥ ${alpha}).`;
 
+  // Return a full ANOVA table structure
   return {
-    fStatistic,
-    pValue,
-    dfBetween,
-    dfWithin,
-    ssb,
-    ssw,
-    msb,
-    msw,
-    decision
+    between: {
+      source: 'Between',
+      df: dfBetween,
+      SS: ssb,
+      MS: msb,
+      F: fStatistic,
+      p: pValue,
+      decision
+    },
+    within: {
+      source: 'Within',
+      df: dfWithin,
+      SS: ssw,
+      MS: msw
+    },
+    total: {
+      source: 'Total',
+      df: dfTotal,
+      SS: ssb + ssw
+    }
   };
 }
 
@@ -756,7 +769,8 @@ export const calcSingle_z_test = (req) => {
   const curPath = `${path.resolve()}/public/${fileName}`;
 
   // Support both headerName and headerNames[0]
-  const colName = headerName || (Array.isArray(headerNames) ? headerNames[0] : undefined);
+  const colName =
+    headerName || (Array.isArray(headerNames) ? headerNames[0] : undefined);
 
   const sampleData = getDataByHeader(curPath, colName);
   if (!sampleData) throw new Error('there is no column with this name');
@@ -906,5 +920,143 @@ function twoSampleZTest(
     decision,
     sampleSize1: n1,
     sampleSize2: n2
+  };
+}
+
+// Two-way ANOVA implementation
+export function calcTwoWayANOVA(groups, levelsA, levelsB, alpha = 0.05) {
+  // groups: 2D array [A][B] of values
+  // levelsA: unique values for factor A
+  // levelsB: unique values for factor B
+  // alpha: significance level
+
+  const a = levelsA.length;
+  const b = levelsB.length;
+  const n = groups.reduce(
+    (sum, row) => sum + row.reduce((s, g) => s + g.length, 0),
+    0
+  );
+  const cellSizes = groups.map((row) => row.map((g) => g.length));
+
+  // Flatten all values
+  const allValues = groups.flat(2);
+  const grandMean = jStat.mean(allValues);
+
+  // Means
+  const meanA = groups.map((row) => jStat.mean(row.flat()));
+  const meanB = levelsB.map((_, j) =>
+    jStat.mean(groups.map((row) => row[j]).flat())
+  );
+  const cellMeans = groups.map((row) => row.map((g) => jStat.mean(g)));
+
+  // SS total
+  const SST = allValues.reduce((sum, v) => sum + Math.pow(v - grandMean, 2), 0);
+
+  // SS for factor A
+  const SSA = meanA.reduce((sum, mA, i) => {
+    const ni = cellSizes[i].reduce((a, b) => a + b, 0);
+    return sum + ni * Math.pow(mA - grandMean, 2);
+  }, 0);
+
+  // SS for factor B
+  const nj = cellSizes[0].map((_, j) =>
+    cellSizes.map((row) => row[j]).reduce((a, b) => a + b, 0)
+  );
+  const SSB = meanB.reduce((sum, mB, j) => {
+    return sum + nj[j] * Math.pow(mB - grandMean, 2);
+  }, 0);
+
+  // SS for interaction
+  let SSI = 0;
+  for (let i = 0; i < a; i++) {
+    for (let j = 0; j < b; j++) {
+      const nij = cellSizes[i][j];
+      if (nij === 0) continue;
+      SSI +=
+        nij * Math.pow(cellMeans[i][j] - meanA[i] - meanB[j] + grandMean, 2);
+    }
+  }
+
+  // SS error (within)
+  let SSE = 0;
+  for (let i = 0; i < a; i++) {
+    for (let j = 0; j < b; j++) {
+      const mean = cellMeans[i][j];
+      SSE += groups[i][j].reduce((sum, v) => sum + Math.pow(v - mean, 2), 0);
+    }
+  }
+
+  // Degrees of freedom
+  const dfA = a - 1;
+  const dfB = b - 1;
+  const dfI = dfA * dfB;
+  const dfE = n - a * b;
+
+  // Mean squares
+  const MSA = SSA / dfA;
+  const MSB = SSB / dfB;
+  const MSI = SSI / dfI;
+  const MSE = SSE / dfE;
+
+  // F statistics
+  const FA = MSA / MSE;
+  const FB = MSB / MSE;
+  const FI = MSI / MSE;
+
+  // p-values
+  const pA = 1 - jStat.centralF.cdf(FA, dfA, dfE);
+  const pB = 1 - jStat.centralF.cdf(FB, dfB, dfE);
+  const pI = 1 - jStat.centralF.cdf(FI, dfI, dfE);
+
+  // Decision logic
+  const decisionA =
+    pA < alpha
+      ? `Reject the null hypothesis: There is a significant effect of Factor A (p < ${alpha}).`
+      : `Fail to reject the null hypothesis: No significant effect of Factor A (p ≥ ${alpha}).`;
+
+  const decisionB =
+    pB < alpha
+      ? `Reject the null hypothesis: There is a significant effect of Factor B (p < ${alpha}).`
+      : `Fail to reject the null hypothesis: No significant effect of Factor B (p ≥ ${alpha}).`;
+
+  const decisionI =
+    pI < alpha
+      ? `Reject the null hypothesis: There is a significant interaction effect (p < ${alpha}).`
+      : `Fail to reject the null hypothesis: No significant interaction effect (p ≥ ${alpha}).`;
+
+  return {
+    FactorA: {
+      name: levelsA,
+      df: dfA,
+      SS: SSA,
+      MS: MSA,
+      F: FA,
+      p: pA,
+      decision: decisionA
+    },
+    FactorB: {
+      name: levelsB,
+      df: dfB,
+      SS: SSB,
+      MS: MSB,
+      F: FB,
+      p: pB,
+      decision: decisionB
+    },
+    Interaction: {
+      df: dfI,
+      SS: SSI,
+      MS: MSI,
+      F: FI,
+      p: pI,
+      decision: decisionI
+    },
+    Error: { df: dfE, SS: SSE },
+    Total: { df: n - 1, SS: SST },
+    summary: {
+      FactorA: { F: FA, p: pA, decision: decisionA },
+      FactorB: { F: FB, p: pB, decision: decisionB },
+      Interaction: { F: FI, p: pI, decision: decisionI }
+    }
   };
 }

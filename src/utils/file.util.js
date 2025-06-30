@@ -129,3 +129,67 @@ function cleanNumericData(value) {
 
   return null; // Ignore any non-string and non-number values
 }
+
+// Utility: Read entire sheet as array of objects (rows)
+export function getSheetData(filePath) {
+  const workbook = xlsx.readFile(filePath);
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  return xlsx.utils.sheet_to_json(worksheet, { defval: null });
+}
+
+// Utility: Group data by one or two factors for ANOVA
+export function groupByFactors(data, factorNames, valueName) {
+  if (
+    !Array.isArray(factorNames) ||
+    factorNames.length < 1 ||
+    factorNames.length > 2
+  ) {
+    throw new Error('factorNames must be an array of one or two column names');
+  }
+  if (!valueName) throw new Error('valueName is required');
+
+  if (factorNames.length === 1) {
+    // One-way: group by single factor, ensure only valid numbers are included
+    const groups = {};
+    data.forEach((row) => {
+      const key = row[factorNames[0]];
+      if (key == null) return;
+      let val = row[valueName];
+      if (val != null && val !== '') {
+        val = Number(val);
+        if (!isNaN(val) && isFinite(val)) {
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(val);
+        }
+      }
+    });
+    // Sort groups by factor level for consistency (numeric sort)
+    return Object.keys(groups)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => groups[k]);
+  } else {
+    // Two-way: group by both factors
+    const levels1 = Array.from(
+      new Set(data.map((row) => row[factorNames[0]]).filter((x) => x != null))
+    );
+    const levels2 = Array.from(
+      new Set(data.map((row) => row[factorNames[1]]).filter((x) => x != null))
+    );
+    // Build a 2D array: [ [group for (level1, level2)], ... ]
+    const groups = levels1.map((level1) =>
+      levels2.map((level2) =>
+        data
+          .filter(
+            (row) =>
+              row[factorNames[0]] === level1 && row[factorNames[1]] === level2
+          )
+          .map((row) => Number(row[valueName]))
+          .filter(
+            (val) => val != null && val !== '' && !isNaN(val) && isFinite(val)
+          )
+      )
+    );
+    return { groups, levels1, levels2 };
+  }
+}
