@@ -193,3 +193,31 @@ export function groupByFactors(data, factorNames, valueName) {
     return { groups, levels1, levels2 };
   }
 }
+
+// Encode all specified factor columns in a sheet, return new data and mappings
+export function encodeSheetFactors(data, factorNames) {
+  let mappings = {};
+  let encodedData = data.map((row) => ({ ...row }));
+  factorNames.forEach((factor) => {
+    const col = data.map((row) => row[factor]);
+    if (col.some((v) => isNaN(Number(v)))) {
+      const { encoded, mapping } = encodeFactorColumn(col);
+      mappings[factor] = mapping;
+      encodedData.forEach((row, i) => {
+        row[factor] = encoded[i];
+      });
+    }
+  });
+  return { encodedData, mappings };
+}
+
+// Encode a factor column (string or mixed) to numbers, and return mapping
+export function encodeFactorColumn(values) {
+  const unique = Array.from(new Set(values));
+  const mapping = {};
+  unique.forEach((val, idx) => {
+    mapping[val] = idx;
+  });
+  const encoded = values.map((val) => mapping[val]);
+  return { encoded, mapping };
+}

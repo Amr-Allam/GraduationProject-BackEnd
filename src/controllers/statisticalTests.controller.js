@@ -17,7 +17,8 @@ import {
 import {
   getDataByHeader,
   getSheetData,
-  groupByFactors
+  groupByFactors,
+  encodeSheetFactors
 } from '../utils/file.util';
 import { validateData } from '../utils/validateData';
 
@@ -91,8 +92,10 @@ export const anova = async (req, res) => {
     if (!data || data.length === 0) {
       return res.status(400).json({ error: 'No data found in the file' });
     }
-    // Group data by factor(s)
-    const grouped = groupByFactors(data, factorNames, valueName);
+    // Encode factor columns
+    const { encodedData, mappings } = encodeSheetFactors(data, factorNames);
+    // Group data by factor(s) using encodedData
+    const grouped = groupByFactors(encodedData, factorNames, valueName);
     let result;
     if (factorNames.length === 1) {
       // One-way ANOVA
@@ -104,7 +107,7 @@ export const anova = async (req, res) => {
     }
     return res
       .status(200)
-      .json({ message: 'ANOVA test completed successfully', result });
+      .json({ message: 'ANOVA test completed successfully', result, mappings });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
