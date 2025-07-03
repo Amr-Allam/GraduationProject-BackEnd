@@ -35,7 +35,7 @@ const ensureDirectoryExistence = (dirPath) => {
 };
 
 export const processFile = () => async (req, res, next) => {
-  const filesDir = path.resolve(__dirname, 'public');
+  const filesDir = path.resolve('/tmp');
   console.log(filesDir);
   ensureDirectoryExistence(filesDir);
   const fileNamePrefix = 'document';
