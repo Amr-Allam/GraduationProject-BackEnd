@@ -1,6 +1,10 @@
 import winston, { format } from 'winston';
 import 'winston-daily-rotate-file';
 
+const isVercel = !!process.env.VERCEL;
+const serverLogDir = isVercel ? '/tmp/logs/server' : 'logs/server';
+const requestLogDir = isVercel ? '/tmp/logs/requests' : 'logs/requests';
+
 /**
  * Logger handles all logs in the application
  */
@@ -9,19 +13,19 @@ const logger = winston.createLogger({
   colorize: true,
   transports: [
     new winston.transports.File({
-      filename: 'logs/server/error.log',
+      filename: `${serverLogDir}/error.log`,
       level: 'error',
       handleExceptions: true
     }),
     new winston.transports.File({
-      filename: 'logs/server/all.log',
+      filename: `${serverLogDir}/all.log`,
       level: 'info',
       handleExceptions: true
     }),
     new winston.transports.DailyRotateFile({
       maxFiles: '14d',
       level: 'info',
-      dirname: 'logs/server/daily',
+      dirname: `${serverLogDir}/daily`,
       datePattern: 'YYYY-MM-DD',
       filename: '%DATE%.log'
     }),
@@ -40,7 +44,7 @@ const morganLogger = winston.createLogger({
   format: format.combine(format.simple()),
   transports: [
     new winston.transports.File({
-      filename: 'logs/requests/all.log',
+      filename: `${requestLogDir}/all.log`,
       level: 'debug',
       handleExceptions: true
     }),
@@ -52,7 +56,7 @@ const morganLogger = winston.createLogger({
     new winston.transports.DailyRotateFile({
       maxFiles: '14d',
       level: 'info',
-      dirname: 'logs/requests/daily',
+      dirname: `${requestLogDir}/daily`,
       datePattern: 'YYYY-MM-DD',
       filename: '%DATE%.log'
     })
