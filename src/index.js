@@ -21,7 +21,7 @@ const host = process.env.APP_HOST;
 const port = process.env.PORT || process.env.APP_PORT || 3000;
 const api_version = process.env.API_VERSION;
 const allowedOrigins = [
-  'quickstats-analysis.vercel.app' // frontend URL
+  'https://quickstats-analysis.vercel.app' // frontend URL
 ];
 
 app.use(
