@@ -30,7 +30,7 @@ export const single_t_test = (req, res) => {
 
 export const kolmogorovSmirnovNormalTest = (req, res) => {
   const { fileName, headerName } = req.body;
-  const curPath = `${path.resolve()}/public/${fileName}`;
+  const curPath = path.join('/tmp', fileName);
 
   const data = getDataByHeader(curPath, headerName);
   if (!data) throw new Error('there is no column with this name');
@@ -42,7 +42,7 @@ export const kolmogorovSmirnovNormalTest = (req, res) => {
 
 export const signTest = (req, res) => {
   const { fileName, headerNames } = req.body;
-  const curPath = `${path.resolve()}/public/${fileName}`;
+  const curPath = path.join('/tmp', fileName);
 
   const sample1 = getDataByHeader(curPath, headerNames[0]);
   const sample2 = getDataByHeader(curPath, headerNames[1]);
@@ -59,7 +59,7 @@ export const signTest = (req, res) => {
 
 export const wilcoxonSignedRankTest = (req, res) => {
   const { fileName, headerNames } = req.body;
-  const curPath = `${path.resolve()}/public/${fileName}`;
+  const curPath = path.join('/tmp', fileName);
 
   const sample1 = getDataByHeader(curPath, headerNames[0]);
   const sample2 = getDataByHeader(curPath, headerNames[1]);
@@ -87,7 +87,7 @@ export const anova = async (req, res) => {
         error: 'factorNames must be an array of one or two column names'
       });
     }
-    const curPath = `${path.resolve()}/public/${fileName}`;
+    const curPath = path.join('/tmp', fileName);
     const data = getSheetData(curPath);
     if (!data || data.length === 0) {
       return res.status(400).json({ error: 'No data found in the file' });
@@ -115,7 +115,7 @@ export const anova = async (req, res) => {
 
 export const mannWhitneyUTest = (req, res) => {
   const { fileName, headerNames } = req.body;
-  const curPath = `${path.resolve()}/public/${fileName}`;
+  const curPath = path.join('/tmp', fileName);
 
   const sample1 = getDataByHeader(curPath, headerNames[0]);
   const sample2 = getDataByHeader(curPath, headerNames[1]);

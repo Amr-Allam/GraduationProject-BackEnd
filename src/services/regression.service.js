@@ -21,7 +21,7 @@ export function calcLinearReg(req) {
 
   // Construct safe file path
   const safeFileName = path.basename(fileName);
-  const curPath = path.join(path.resolve(), 'public', safeFileName);
+  const curPath = path.join('/tmp', safeFileName);
 
   // Extract data
   const dependent = getDataByHeader(curPath, dependentName);

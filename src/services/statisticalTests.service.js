@@ -5,7 +5,7 @@ import { validateData } from '../utils/validateData';
 
 export const calcSingle_t_test = (req) => {
   const { populationMean, fileName, headerName, alpha, alternative } = req.body;
-  const curPath = `${path.resolve()}/public/${fileName}`;
+  const curPath = path.join('/tmp', fileName);
 
   const sampleData = getDataByHeader(curPath, headerName);
   if (!sampleData) throw new Error('there is no column with this name');
@@ -22,7 +22,7 @@ export const calcSingle_t_test = (req) => {
 
 export const calcPaired_t_test = (req) => {
   const { fileName, headerNames, alpha, alternative } = req.body;
-  const curPath = `${path.resolve()}/public/${fileName}`;
+  const curPath = path.join('/tmp', fileName);
 
   const sample1 = getDataByHeader(curPath, headerNames[0]);
   const sample2 = getDataByHeader(curPath, headerNames[1]);
@@ -42,7 +42,7 @@ export const calcPaired_t_test = (req) => {
 
 export const calcIndependent_t_test = (req) => {
   const { fileName, headerNames, alpha, alternative } = req.body;
-  const curPath = `${path.resolve()}/public/${fileName}`;
+  const curPath = path.join('/tmp', fileName);
 
   const sample1 = getDataByHeader(curPath, headerNames[0]);
   const sample2 = getDataByHeader(curPath, headerNames[1]);
@@ -631,7 +631,7 @@ export function calcChiSquareTest({
   testType,
   alpha = 0.05
 }) {
-  const curPath = `${path.resolve()}/public/${fileName}`;
+  const curPath = path.join('/tmp', fileName);
   if (!Array.isArray(headerNames) || headerNames.length < 1) {
     throw new Error('At least one headerName is required');
   }
@@ -766,7 +766,7 @@ export const calcSingle_z_test = (req) => {
     alpha,
     alternative
   } = req.body;
-  const curPath = `${path.resolve()}/public/${fileName}`;
+  const curPath = path.join('/tmp', fileName);
 
   // Support both headerName and headerNames[0]
   const colName =
@@ -797,7 +797,7 @@ export const calcTwo_sample_z_test = (req) => {
     populationStdDev1,
     populationStdDev2
   } = req.body;
-  const curPath = `${path.resolve()}/public/${fileName}`;
+  const curPath = path.join('/tmp', fileName);
 
   const sample1 = getDataByHeader(curPath, headerNames[0]);
   const sample2 = getDataByHeader(curPath, headerNames[1]);

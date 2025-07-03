@@ -58,7 +58,7 @@ export const processFile = () => async (req, res, next) => {
 };
 
 export const removeFile = async (filesArray) => {
-  const directoryPath = path.resolve(__dirname, '../public/files');
+  const directoryPath = path.resolve(__dirname, '/tmp');
   filesArray.forEach((file) => {
     const filePath = path.join(directoryPath, file);
     console.log(filePath); // Full path to the file
